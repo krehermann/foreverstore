@@ -3,6 +3,7 @@ module github.com/krehermann/foreverstore
 go 1.18
 
 require (
+	github.com/alecthomas/kong v0.7.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect

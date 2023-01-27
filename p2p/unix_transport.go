@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 
+	"github.com/krehermann/foreverstore/types"
+	"github.com/krehermann/foreverstore/util"
 	"go.uber.org/zap"
 )
 
@@ -26,12 +27,14 @@ type UnixTransport struct {
 	addr     *net.UnixAddr
 	listener net.Listener
 
-	mu sync.RWMutex
 	// connections our listener excepted
-	incoming map[net.Addr]net.Conn
+	incoming *util.ConcurrentMap[*types.ComparableAddr, net.Conn] //map[net.Addr]net.Conn
 	// connections this transport has dialed
-	outgoing map[net.Addr]net.Conn
+	outgoing *util.ConcurrentMap[*types.ComparableAddr, net.Conn]
 
+	//Handshaker
+	//	decoder Decoder
+	config UnixTransportConfig
 	logger *zap.Logger
 }
 
@@ -43,7 +46,13 @@ func UnixOptWithLogger(l *zap.Logger) UnixOpt {
 	}
 }
 
-func NewUnixTransport(listenAddr string, opts ...UnixOpt) (*UnixTransport, error) {
+type UnixTransportConfig struct {
+	Handshaker Handshaker
+	//RPCDecoder    Decoder
+	AllowAnonynomous bool
+}
+
+func NewUnixTransport(listenAddr string, config UnixTransportConfig, opts ...UnixOpt) (*UnixTransport, error) {
 	a, err := net.ResolveUnixAddr("unix", listenAddr)
 	if err != nil {
 		return nil, err
@@ -51,8 +60,9 @@ func NewUnixTransport(listenAddr string, opts ...UnixOpt) (*UnixTransport, error
 
 	u := &UnixTransport{
 		addr:     a,
-		incoming: make(map[net.Addr]net.Conn),
-		outgoing: make(map[net.Addr]net.Conn),
+		incoming: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
+		outgoing: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
+		config:   config,
 	}
 
 	for _, opt := range opts {
@@ -111,17 +121,51 @@ acceptLoop:
 }
 
 func (u *UnixTransport) handleConn(conn net.Conn, id int) error {
-	u.mu.Lock()
-	defer u.mu.Unlock()
 	u.logger.Debug("new connection",
 		zap.String("local", conn.LocalAddr().String()),
 		zap.String("remote", conn.RemoteAddr().String()),
 	)
 
-	if conn.RemoteAddr().String() == "@" {
-		u.logger.Error("refusing anonyomous connection")
+	if !u.config.AllowAnonynomous && conn.RemoteAddr().String() == "@" {
+		u.logger.Error("refusing anonyomous connection", zap.Bool("allow", u.config.AllowAnonynomous))
 		return fmt.Errorf("no peer in incoming unix connection %s", conn.RemoteAddr().String())
 	}
-	u.incoming[conn.RemoteAddr()] = conn
+
+	err := u.incoming.Put(
+		types.NewComparableAddr(conn.RemoteAddr()),
+		conn,
+	)
+	if err != nil {
+		return err
+	}
+
+	err = u.config.Handshaker.Handshake(conn)
+	if err != nil {
+		u.logger.Error("handshake failed. closing connection", zap.Error(err))
+		conn.Close()
+		return err
+	}
+
+	//var rpc RPC
+	//decoder := NewRPCDecoder(conn, u.logger)
+	received := make([]byte, 0)
+	for {
+		buf := make([]byte, 512)
+
+		n, err := conn.Read(buf)
+		received = append(received, buf[:n]...)
+		if err != nil {
+			u.logger.Sugar().Infof("read %d %s", n, string(received))
+
+		}
+
+		/*
+			err := decoder.Decode(rpc)
+			if err != nil {
+				u.logger.Error("decoding error", zap.Error(err))
+				continue
+			}
+		*/
+	}
 	return nil
 }
