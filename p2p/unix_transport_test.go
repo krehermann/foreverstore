@@ -18,7 +18,7 @@ func TestUnixTransport(t *testing.T) {
 	f := filepath.Join(d, "abd")
 	logger, err := zap.NewDevelopment()
 	assert.NoError(t, err)
-	u, err := NewUnixTransport(f, UnixOptWithLogger(logger))
+	u, err := NewTcpTransport(f, TcpOptWithLogger(logger))
 	assert.NoError(t, err)
 	assert.NotEmpty(t, u.addr.String())
 
