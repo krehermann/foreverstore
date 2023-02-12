@@ -2,9 +2,7 @@ package p2p
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,14 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestUnixTransport(t *testing.T) {
-	d := t.TempDir()
+func TestTCPTransport(t *testing.T) {
 
-	f := filepath.Join(d, "abd")
 	logger, err := zap.NewDevelopment()
 	assert.NoError(t, err)
-	//	u, err := NewTcpTransport(f, TcpTransportConfig{}, TcpOptWithLogger(logger))
-	u, err := NewUnixTransport(f, UnixTransportConfig{Handshaker: NOPHandshake{}}, UnixOptWithLogger(logger))
+	u, err := NewTcpTransport(":0", TcpTransportConfig{Handshaker: NOPHandshake{}}, TcpOptWithLogger(logger))
 	assert.NoError(t, err)
 	assert.NotEmpty(t, u.addr.String())
 
@@ -27,11 +22,14 @@ func TestUnixTransport(t *testing.T) {
 
 	nConn := 5
 	for i := 0; i < nConn; i++ {
-		localAddr, err := net.ResolveUnixAddr("unix", filepath.Join(d,
-			fmt.Sprintf("dialer-%d", i)))
+		/*
+			localAddr, err := net.ResolveUnixAddr("unix", filepath.Join(d,
+				fmt.Sprintf("dialer-%d", i)))
+		*/
+
 		assert.Nil(t, err)
-		//c, err := net.Dial(u.listener.Addr().Network(), u.listener.Addr().String())
-		c, err := net.DialUnix("unix", localAddr, u.addr)
+		c, err := net.Dial(u.listener.Addr().Network(), u.listener.Addr().String())
+		//c, err := net.DialUnix("unix", localAddr, u.addr)
 
 		t.Logf("conn remote %s, local %s", c.RemoteAddr().String(), c.LocalAddr().String())
 		assert.NoError(t, err)
