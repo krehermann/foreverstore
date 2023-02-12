@@ -1,5 +1,7 @@
 package p2p
 
+import "context"
+
 // Peer is interface of a remote node
 type Peer interface {
 	Close() error
@@ -9,7 +11,8 @@ type Peer interface {
 // between nodes in the network.
 // TCP, UDP, websockets
 type Transport interface {
-	Start() error
+	//Start() error
+	Listen(context.Context) error
 	Recv() chan<- RPC
 }
 
