@@ -22,6 +22,8 @@ type TcpTransport struct {
 
 	config TcpTransportConfig
 	logger *zap.Logger
+
+	rpcCh chan RPC
 }
 
 type TcpOpt func(*TcpTransport)
@@ -52,6 +54,7 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 		incoming: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
 		outgoing: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
 		config:   config,
+		rpcCh:    make(chan RPC),
 	}
 
 	for _, opt := range opts {
@@ -59,6 +62,10 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 	}
 
 	return u, nil
+}
+
+func (u *TcpTransport) Recv() chan<- RPC {
+	return u.rpcCh
 }
 
 func (u *TcpTransport) Listen(ctx context.Context) error {
@@ -113,6 +120,7 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 			return err
 		}
 		rpc.From = conn.RemoteAddr()
+		u.rpcCh <- rpc
 		u.logger.Debug("got rpc", zap.Any("raw", rpc), zap.String("payload", string(rpc.Payload)))
 	}
 

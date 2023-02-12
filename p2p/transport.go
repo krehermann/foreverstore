@@ -2,6 +2,7 @@ package p2p
 
 // Peer is interface of a remote node
 type Peer interface {
+	Close() error
 }
 
 // Transport is anything that handles the communication
@@ -9,4 +10,7 @@ type Peer interface {
 // TCP, UDP, websockets
 type Transport interface {
 	Start() error
+	Recv() chan<- RPC
 }
+
+type PeerHandler func(Peer) error
