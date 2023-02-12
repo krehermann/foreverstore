@@ -32,3 +32,9 @@ func (m *ConcurrentMap[T, V]) Delete(key T) {
 	defer m.mu.Unlock()
 	delete(m.data, key)
 }
+
+func (m *ConcurrentMap[T, V]) Len() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.data)
+}
