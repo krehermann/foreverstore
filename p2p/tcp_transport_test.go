@@ -11,10 +11,17 @@ import (
 )
 
 func TestTCPTransport(t *testing.T) {
-
+	var cnt int
+	onPeer := func(p Peer) error {
+		cnt++
+		return p.Close()
+	}
 	logger, err := zap.NewDevelopment()
 	assert.NoError(t, err)
-	u, err := NewTcpTransport(":0", TcpTransportConfig{Handshaker: NOPHandshake{}}, TcpOptWithLogger(logger))
+	u, err := NewTcpTransport(":0", TcpTransportConfig{
+		Handshaker:  NOPHandshake{},
+		PeerHandler: onPeer,
+	}, TcpOptWithLogger(logger))
 	assert.NoError(t, err)
 	assert.NotEmpty(t, u.addr.String())
 
@@ -22,14 +29,9 @@ func TestTCPTransport(t *testing.T) {
 
 	nConn := 5
 	for i := 0; i < nConn; i++ {
-		/*
-			localAddr, err := net.ResolveUnixAddr("unix", filepath.Join(d,
-				fmt.Sprintf("dialer-%d", i)))
-		*/
 
 		assert.Nil(t, err)
 		c, err := net.Dial(u.listener.Addr().Network(), u.listener.Addr().String())
-		//c, err := net.DialUnix("unix", localAddr, u.addr)
 
 		t.Logf("conn remote %s, local %s", c.RemoteAddr().String(), c.LocalAddr().String())
 		assert.NoError(t, err)
@@ -37,7 +39,7 @@ func TestTCPTransport(t *testing.T) {
 	}
 
 	assert.Eventually(t, func() bool {
-		return u.incoming.Len() == nConn
+		return cnt == nConn
 	},
 		100*time.Millisecond, 5*time.Millisecond)
 

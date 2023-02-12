@@ -10,6 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ Peer = (*UnixPeer)(nil)
+
 type UnixPeer struct {
 	id   string
 	conn net.Conn
@@ -20,6 +22,10 @@ func NewUnixPeer(conn net.Conn, id string) *UnixPeer {
 		id:   id,
 		conn: conn,
 	}
+}
+
+func (p *UnixPeer) Close() error {
+	return p.conn.Close()
 }
 
 type UnixTransport struct {

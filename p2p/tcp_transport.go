@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ Transport = (*TcpTransport)(nil)
+
 type TcpTransport struct {
 	//addr string
 	addr     *net.TCPAddr
@@ -38,6 +40,7 @@ type TcpTransportConfig struct {
 	Handshaker       Handshaker
 	AllowAnonynomous bool
 	ProtocolFactoryFunc
+	PeerHandler
 }
 
 func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOpt) (*TcpTransport, error) {
@@ -92,18 +95,26 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 		return fmt.Errorf("no peer in incoming unix connection %s", conn.RemoteAddr().String())
 	}
 
-	raddr := types.NewComparableAddr(conn.RemoteAddr())
-	err := u.incoming.Put(raddr, conn)
-	if err != nil {
-		return err
+	if u.config.PeerHandler != nil {
+		err := u.config.PeerHandler(conn)
+		if err != nil {
+
+			return err
+		}
 	}
+	//raddr := types.NewComparableAddr(conn.RemoteAddr())
+	/*
+		err := u.incoming.Put(raddr, conn)
+		if err != nil {
+			return err
+		}
 
-	defer func() {
-		u.incoming.Delete(raddr)
-		conn.Close()
-	}()
-
-	err = u.config.Handshaker.Handshake(conn)
+		defer func() {
+			u.incoming.Delete(raddr)
+			conn.Close()
+		}()
+	*/
+	err := u.config.Handshaker.Handshake(conn)
 	if err != nil {
 		u.logger.Error("handshake failed. closing connection", zap.Error(err))
 		return err
