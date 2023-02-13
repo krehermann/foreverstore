@@ -13,8 +13,8 @@ type PathFunc func(hash.Hash, string) string
 
 func awsContentPath(h hash.Hash, unused string) string {
 	b := h.Sum(nil)
-	topDir := hex.EncodeToString(b[:2])
-	subDir := hex.EncodeToString(b[2:4])
+	topDir := hex.EncodeToString(b[:1])
+	subDir := hex.EncodeToString(b[1:2])
 	fname := hex.EncodeToString(b)
 	return filepath.Join(topDir, subDir, fname)
 }

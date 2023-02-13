@@ -2,21 +2,57 @@ package store
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 
 	"github.com/krehermann/foreverstore/util"
 )
 
+type GetConfig struct {
+	version int
+}
+
+type GetOpt func(*GetConfig)
+
+func GetVersion(version int) GetOpt {
+	return func(c *GetConfig) {
+		c.version = version
+	}
+}
+
 type Metastore interface {
-	Register(*ObjectRef) error
-	Get(key string, version int) (*VersionedObjectRef, error)
-	GetLatest(key string) (*VersionedObjectRef, error)
+	//	Register(*ObjectRef) error
+	Get(key string, opts ...GetOpt) (*VersionedObjectRef, error)
+	Put(key string, r io.Reader) error
+	//	GetLatest(key string) (*VersionedObjectRef, error)
+	//	Create(key string) (*VersionedObjectRef, error)
+	ReadWriteFS
 }
 
 type MemMeta struct {
 	mu sync.RWMutex
-	m  util.ConcurrentMap[string, []*VersionedObjectRef]
+	m  *util.ConcurrentMap[string, []*VersionedObjectRef]
+	fs ReadWriteFS
+}
+
+func NewMemMeta(fs ReadWriteFS) *MemMeta {
+	return &MemMeta{
+		fs: fs,
+		m:  util.NewConcurrentMap[string, []*VersionedObjectRef](),
+	}
+}
+
+func (m *MemMeta) Open(key string) (File, error) {
+	v, err := m.GetLatest(key)
+	if err != nil {
+		return nil, err
+	}
+	return m.fs.Open(v.Path)
+}
+
+func (m *MemMeta) Create(key string) (*Blob, error) {
+	return NewWritableBlob(key)
 }
 
 func (m *MemMeta) Register(r *ObjectRef) error {
@@ -43,6 +79,11 @@ func (m *MemMeta) Get(key string, version int) (*VersionedObjectRef, error) {
 	}
 	for _, obj := range objs {
 		if obj.Version == version {
+			f, err := m.fs.Open(obj.Path)
+			if err != nil {
+				return nil, err
+			}
+			obj.handle = f
 			return obj, nil
 		}
 	}
