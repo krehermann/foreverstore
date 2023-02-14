@@ -12,7 +12,6 @@ type File interface {
 
 type WriteFile interface {
 	File
-
 	Write([]byte) (int, error)
 }
 
