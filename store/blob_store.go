@@ -10,20 +10,20 @@ import (
 	"go.uber.org/zap"
 )
 
-type FileStoreConfig struct {
+type BlobStoreConfig struct {
 	PathFunc
 	Root   string
 	Logger *zap.Logger
 	Metastore
 }
 
-type FileStore struct {
-	config FileStoreConfig
+type BlobStore struct {
+	config BlobStoreConfig
 
 	registerCh chan<- *ObjectRef
 }
 
-func NewFileStore(config FileStoreConfig) (*FileStore, error) {
+func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 	if config.PathFunc == nil {
 		config.PathFunc = awsContentPath
 	}
@@ -50,7 +50,7 @@ func NewFileStore(config FileStoreConfig) (*FileStore, error) {
 		}
 	}
 
-	return &FileStore{
+	return &BlobStore{
 		config:     config,
 		registerCh: make(chan<- *ObjectRef),
 	}, nil
@@ -97,8 +97,8 @@ func (s *FileStore) Create(key string, r io.Reader) (*ObjectRef, error) {
 }
 */
 
-func (s *FileStore) onClose(b *Blob) error {
-	pth := filepath.Join(s.config.Root, s.config.PathFunc(b.Hash, ""))
+func (s *BlobStore) onClose(b *Blob) error {
+	pth := filepath.Join(s.config.Root, s.config.PathFunc(b.Hash))
 	err := os.MkdirAll(filepath.Dir(pth), 0755)
 	if err != nil {
 		return err
@@ -111,24 +111,24 @@ func (s *FileStore) onClose(b *Blob) error {
 	return nil
 }
 
-func (s *FileStore) Create(name string) (*Blob, error) {
+func (s *BlobStore) Create(name string) (*Blob, error) {
 	return NewWritableBlob(name, WithCloseFn(s.onClose))
 }
 
-func (s *FileStore) ReadFile(pth string) ([]byte, error) {
+func (s *BlobStore) ReadFile(pth string) ([]byte, error) {
 
 	return ioutil.ReadFile(s.fullPath(pth))
 }
 
-func (s *FileStore) Open(name string) (*Blob, error) {
+func (s *BlobStore) Open(name string) (*Blob, error) {
 	return NewReadonlyBlob(s.fullPath(name))
 }
 
-func (s *FileStore) fullPath(p string) string {
+func (s *BlobStore) fullPath(p string) string {
 	return filepath.Join(s.config.Root, p)
 }
 
-func (s *FileStore) relPath(p string) string {
+func (s *BlobStore) relPath(p string) string {
 	if filepath.IsAbs(p) {
 		return strings.TrimPrefix(p, s.config.Root)
 	} else {

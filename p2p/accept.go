@@ -38,8 +38,6 @@ acceptLoop:
 			break acceptLoop
 		case r := <-resultCh:
 			if r.err != nil {
-				// todo error channel?
-				//u.logger.Error("connection error", zap.Error(r.err))
 				continue
 			}
 			go handleConnFn(r.conn)

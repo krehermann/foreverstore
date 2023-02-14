@@ -10,9 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestFileStore_Create(t *testing.T) {
+func TestBlobStore_Create(t *testing.T) {
 	type fields struct {
-		config     FileStoreConfig
+		config     BlobStoreConfig
 		registerCh chan<- *ObjectRef
 	}
 	type args struct {
@@ -30,7 +30,7 @@ func TestFileStore_Create(t *testing.T) {
 		{
 			name: "create 1",
 			fields: fields{
-				config: FileStoreConfig{
+				config: BlobStoreConfig{
 					PathFunc: awsContentPath,
 					Root:     t.TempDir(),
 					Logger:   zap.Must(zap.NewDevelopment()),
@@ -49,7 +49,7 @@ func TestFileStore_Create(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := NewFileStore(tt.fields.config)
+			s, err := NewBlobStore(tt.fields.config)
 			require.NoError(t, err, tt.name)
 			b, err := s.Create(tt.args.key)
 			if (err != nil) != tt.wantErr {

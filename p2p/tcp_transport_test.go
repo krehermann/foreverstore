@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,7 +13,10 @@ import (
 
 func TestTCPTransport(t *testing.T) {
 	var cnt int
+	var mu sync.Mutex
 	onPeer := func(p Peer) error {
+		mu.Lock()
+		defer mu.Unlock()
 		cnt++
 		return p.Close()
 	}
@@ -39,6 +43,8 @@ func TestTCPTransport(t *testing.T) {
 	}
 
 	assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
 		return cnt == nConn
 	},
 		100*time.Millisecond, 5*time.Millisecond)
