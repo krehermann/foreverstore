@@ -23,6 +23,8 @@ type BlobStore struct {
 	registerCh chan<- *ObjectRef
 }
 
+var _ ReadWriteFS = (*BlobStore)(nil)
+
 func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 	if config.PathFunc == nil {
 		config.PathFunc = awsContentPath
@@ -111,7 +113,13 @@ func (s *BlobStore) onClose(b *Blob) error {
 	return nil
 }
 
+/*
 func (s *BlobStore) Create(name string) (*Blob, error) {
+	return NewWritableBlob(name, WithCloseFn(s.onClose))
+}
+*/
+
+func (s *BlobStore) Create(name string) (WriteFile, error) {
 	return NewWritableBlob(name, WithCloseFn(s.onClose))
 }
 
@@ -120,7 +128,7 @@ func (s *BlobStore) ReadFile(pth string) ([]byte, error) {
 	return ioutil.ReadFile(s.fullPath(pth))
 }
 
-func (s *BlobStore) Open(name string) (*Blob, error) {
+func (s *BlobStore) Open(name string) (File, error) {
 	return NewReadonlyBlob(s.fullPath(name))
 }
 
