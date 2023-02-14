@@ -62,10 +62,12 @@ func TestBlobStore_Create(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NoError(t, b.Close())
 
-			got, err := s.Open(b.Name())
+			stat, err := b.Stat()
+			assert.NoError(t, err)
+			got, err := s.Open(stat.Name())
 			assert.Nil(t, err)
 			defer got.Close()
-			gotBytes, err := s.ReadFile(b.Name())
+			gotBytes, err := s.ReadFile(stat.Name())
 			assert.Nil(t, err)
 			assert.Equal(t, tt.wantBytes, gotBytes)
 

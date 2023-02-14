@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 )
 
 type blobMode int
@@ -20,6 +21,7 @@ const (
 type closeFn func(b *Blob) error
 
 var _ WriteFile = (*Blob)(nil)
+var _ File = (*Blob)(nil)
 
 type Blob struct {
 	mode blobMode
@@ -102,7 +104,9 @@ func (b *Blob) Read(buf []byte) (int, error) {
 
 // TODO
 func (b *Blob) Stat() (os.FileInfo, error) {
-	return nil, nil
+	return &BlobInfo{
+		name: b.name,
+	}, nil
 }
 
 func (b *Blob) Name() string {
@@ -115,5 +119,32 @@ func (b *Blob) rename(n string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.name = n
+	return nil
+}
+
+type BlobInfo struct {
+	name string
+}
+
+func (i *BlobInfo) Name() string {
+	return i.name
+}
+
+func (i *BlobInfo) Size() int64 {
+	return 0
+}
+
+func (i *BlobInfo) Mode() os.FileMode {
+	return os.FileMode(0)
+}
+func (i *BlobInfo) ModTime() time.Time {
+	// modification time
+	return time.Unix(0, 0)
+}
+func (i *BlobInfo) IsDir() bool {
+	return false
+} // abbreviation for Mode().IsDir()
+
+func (i *BlobInfo) Sys() any {
 	return nil
 }

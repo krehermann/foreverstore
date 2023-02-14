@@ -26,7 +26,7 @@ type ReadFileFS interface {
 
 type WriteFS interface {
 	FS
-	Create(string) WriteFile
+	Create(name string) (WriteFile, error)
 }
 
 type ReadWriteFS interface {
