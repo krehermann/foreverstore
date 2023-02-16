@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"os"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ const (
 type closeFn func(b *Blob) error
 
 var _ WriteFile = (*Blob)(nil)
-var _ File = (*Blob)(nil)
+var _ fs.File = (*Blob)(nil)
 
 type Blob struct {
 	mode blobMode
@@ -102,7 +103,6 @@ func (b *Blob) Read(buf []byte) (int, error) {
 	return b.f.Read(buf)
 }
 
-// TODO
 func (b *Blob) Stat() (os.FileInfo, error) {
 	return &BlobInfo{
 		name: b.name,
