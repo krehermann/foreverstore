@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -58,46 +59,48 @@ func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 	}, nil
 }
 
-/*
-func (s *FileStore) Create(key string, r io.Reader) (*ObjectRef, error) {
-
-	// write to a temporary location
-	// mv to content address
-
-	hashWriter := sha256.New()
-	tempFile, err := os.CreateTemp("", key)
+func (s *BlobStore) Remove(p string) error {
+	// delete the file
+	err := os.Remove(s.fullPath(p))
 	if err != nil {
-		return nil, err
-	}
-	mw := io.MultiWriter(tempFile, hashWriter)
-	n, err := io.Copy(mw, r)
-	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = tempFile.Close()
-	if err != nil {
-		return nil, err
+	// walk fs from top level dir of the given file
+	// delete dirs that are empty
+	relPath := s.relPath(p)
+	splits := filepath.SplitList(relPath)
+	if len(splits) == 0 {
+		return nil
+	}
+	relRoot := s.fullPath(splits[0])
+	stack := []string{}
+	walkDirFn := func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
+			stack = append(stack, path)
+		}
+		return nil
 	}
 
-	pth := filepath.Join(s.config.Root, s.config.PathFunc(hashWriter, key))
-	err = os.MkdirAll(filepath.Dir(pth), 0755)
+	err = fs.WalkDir(s, relRoot, walkDirFn)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	err = os.Rename(tempFile.Name(), pth)
-	if err != nil {
-		return nil, err
+	for i := len(stack) - 1; i >= 0; i-- {
+		pth := stack[i]
+		dirInfo, err := fs.ReadDir(s, pth)
+		if err != nil {
+			return err
+		}
+		if len(dirInfo) == 0 {
+			err = os.Remove(s.fullPath(pth))
+			if err != nil {
+				return err
+			}
+		}
 	}
-
-	return &ObjectRef{
-		Key:  key,
-		Path: pth,
-		Size: n,
-	}, nil
-
+	return nil
 }
-*/
 
 func (s *BlobStore) onClose(b *Blob) error {
 	pth := filepath.Join(s.config.Root, s.config.PathFunc(b.Hash))
@@ -113,12 +116,6 @@ func (s *BlobStore) onClose(b *Blob) error {
 	return nil
 }
 
-/*
-func (s *BlobStore) Create(name string) (*Blob, error) {
-	return NewWritableBlob(name, WithCloseFn(s.onClose))
-}
-*/
-
 func (s *BlobStore) Create(name string) (WriteFile, error) {
 	return NewWritableBlob(name, WithCloseFn(s.onClose))
 }
@@ -128,7 +125,7 @@ func (s *BlobStore) ReadFile(pth string) ([]byte, error) {
 	return ioutil.ReadFile(s.fullPath(pth))
 }
 
-func (s *BlobStore) Open(name string) (File, error) {
+func (s *BlobStore) Open(name string) (fs.File, error) {
 	return NewReadonlyBlob(s.fullPath(name))
 }
 

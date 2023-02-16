@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"sort"
 	"sync"
 
@@ -43,7 +44,7 @@ func NewMemMeta(fs ReadWriteFS) *MemMeta {
 	}
 }
 
-func (m *MemMeta) Open(key string) (File, error) {
+func (m *MemMeta) Open(key string) (fs.File, error) {
 	v, err := m.GetLatest(key)
 	if err != nil {
 		return nil, err

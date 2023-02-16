@@ -1,22 +1,21 @@
 package store
 
-import (
-	"os"
-)
+import "io/fs"
 
-type File interface {
-	Read([]byte) (int, error)
-	Close() error
-	Stat() (os.FileInfo, error)
-}
-
+/*
+	type File interface {
+		Read([]byte) (int, error)
+		Close() error
+		Stat() (os.FileInfo, error)
+	}
+*/
 type WriteFile interface {
-	File
+	fs.File
 	Write([]byte) (int, error)
 }
 
 type FS interface {
-	Open(name string) (File, error)
+	Open(name string) (fs.File, error)
 }
 
 type ReadFileFS interface {
@@ -27,6 +26,7 @@ type ReadFileFS interface {
 type WriteFS interface {
 	FS
 	Create(name string) (WriteFile, error)
+	Remove(name string) error
 }
 
 type ReadWriteFS interface {

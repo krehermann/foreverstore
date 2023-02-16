@@ -2,6 +2,7 @@ package store
 
 import (
 	"io"
+	"io/fs"
 	"os"
 )
 
@@ -18,7 +19,7 @@ type ObjectRef struct {
 	//	host string
 	Size int64
 
-	handle File //*os.File
+	handle fs.File //*os.File
 }
 
 func (r *ObjectRef) Read(b []byte) (int, error) {

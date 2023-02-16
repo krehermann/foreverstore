@@ -49,28 +49,36 @@ func TestBlobStore_Create(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := NewBlobStore(tt.fields.config)
+			//create the store
+			str, err := NewBlobStore(tt.fields.config)
 			require.NoError(t, err, tt.name)
-			b, err := s.Create(tt.args.key)
+			// create a blob
+			b, err := str.Create(tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FileStore.Create() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			// write the blob
 			d, err := io.ReadAll(tt.args.r)
 			assert.NoError(t, err)
 			_, err = b.Write(d)
 			assert.NoError(t, err)
 			assert.NoError(t, b.Close())
 
+			// stat it to get name
 			stat, err := b.Stat()
 			assert.NoError(t, err)
-			got, err := s.Open(stat.Name())
+			// open and read
+			got, err := str.Open(stat.Name())
 			assert.Nil(t, err)
 			defer got.Close()
-			gotBytes, err := s.ReadFile(stat.Name())
+			gotBytes, err := str.ReadFile(stat.Name())
 			assert.Nil(t, err)
 			assert.Equal(t, tt.wantBytes, gotBytes)
 
+			// remove
+			assert.NoError(t, str.Remove(stat.Name()))
+			// todo test removal of full directory path
 		})
 	}
 }
