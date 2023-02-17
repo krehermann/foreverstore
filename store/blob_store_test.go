@@ -90,32 +90,6 @@ func TestBlobStore_Create(t *testing.T) {
 }
 
 func TestBlobStore_Remove(t *testing.T) {
-	type fields struct {
-		config     BlobStoreConfig
-		registerCh chan<- *ObjectRef
-	}
-	type args struct {
-		p string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &BlobStore{
-				config:     tt.fields.config,
-				registerCh: tt.fields.registerCh,
-			}
-			if err := s.Remove(tt.args.p); (err != nil) != tt.wantErr {
-				t.Errorf("BlobStore.Remove() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
 
 	d := t.TempDir()
 	fileCnt := 0
@@ -142,5 +116,47 @@ func TestBlobStore_Remove(t *testing.T) {
 	_, err = f1.Write([]byte("junk"))
 	assert.NoError(t, err)
 	assert.NoError(t, f1.Close())
+
+	st, err := f1.Stat()
+	assert.NoError(t, err)
+	_, err = store.Stat(st.Name())
+	assert.NoError(t, err)
+
+	t.Logf("f name %s", st.Name())
+
+	f2, err := store.Create("key2")
+	require.NoError(t, err)
+	_, err = f2.Write([]byte("other junk"))
+	assert.NoError(t, err)
+	assert.NoError(t, f2.Close())
+
+	st2, err := f2.Stat()
+	assert.NoError(t, err)
+	_, err = store.Stat(st2.Name())
+	assert.NoError(t, err)
+
+	storePath := store.fullPath(st2.Name())
+	commonDir := filepath.Dir(storePath)
+	t.Logf("common dir %s", commonDir)
+
+	dirEnts, err := store.ReadDir(commonDir)
+	assert.NoError(t, err)
+	assert.Len(t, dirEnts, 2)
+
+	assert.NoError(t, store.Remove("key2"))
+	_, err = store.Open("key2")
+	assert.Error(t, err)
+
+	dirEnts, err = store.ReadDir(commonDir)
+	assert.NoError(t, err)
+	assert.Len(t, dirEnts, 1)
+
+	assert.NoError(t, store.Remove("key1"))
+	_, err = store.Open("key1")
+	assert.Error(t, err)
+
+	dirEnts, err = store.ReadDir(commonDir)
+	assert.Error(t, err)
+	assert.Len(t, dirEnts, 0)
 
 }

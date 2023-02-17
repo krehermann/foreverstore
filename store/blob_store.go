@@ -80,6 +80,9 @@ func (s *BlobStore) Remove(key string) error {
 		return err
 	}
 
+	// remove from map
+	s.blobMap.Delete(key)
+
 	filepath.Walk(s.config.Root, func(path string, info fs.FileInfo, err error) error {
 		s.config.Logger.Sugar().Debugf("walking root %s: %s %v %v", s.config.Root,
 			path, info, err)
@@ -169,6 +172,11 @@ func (s *BlobStore) Open(key string) (fs.File, error) {
 		return nil, fmt.Errorf("%w: %s", os.ErrNotExist, key)
 	}
 
+	fp := s.fullPath(pth)
+	_, err := s.Stat(fp)
+	if err != nil {
+		panic(fmt.Sprintf("key %s in map, but underlying file %s stat fails: %v", key, fp, err))
+	}
 	return NewReadonlyBlob(s.fullPath(pth))
 }
 

@@ -17,7 +17,6 @@ func accept(ctx context.Context,
 	type result struct {
 		conn net.Conn
 		err  error
-		id   int
 	}
 
 	resultCh := make(chan *result, 1)

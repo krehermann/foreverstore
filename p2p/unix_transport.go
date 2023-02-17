@@ -152,26 +152,19 @@ func (u *UnixTransport) handleConn(conn net.Conn, id int) error {
 		return err
 	}
 
-	//var rpc RPC
-	//decoder := NewRPCDecoder(conn, u.logger)
 	received := make([]byte, 0)
 	for {
 		buf := make([]byte, 512)
 
 		n, err := conn.Read(buf)
+		if err != nil {
+			return err
+		}
 		received = append(received, buf[:n]...)
 		if err != nil {
 			u.logger.Sugar().Infof("read %d %s", n, string(received))
 
 		}
 
-		/*
-			err := decoder.Decode(rpc)
-			if err != nil {
-				u.logger.Error("decoding error", zap.Error(err))
-				continue
-			}
-		*/
 	}
-	return nil
 }
