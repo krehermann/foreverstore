@@ -35,7 +35,7 @@ func TestBlobStore_Create(t *testing.T) {
 			name: "create 1",
 			fields: fields{
 				config: BlobStoreConfig{
-					PathFunc: awsContentPath,
+					PathFunc: ContentPath,
 					Root:     t.TempDir(),
 					Logger:   zap.Must(zap.NewDevelopment()),
 				},

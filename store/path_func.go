@@ -11,7 +11,7 @@ import (
 // maybe i don't need both...
 type PathFunc func(hash.Hash) string
 
-func awsContentPath(h hash.Hash) string {
+func ContentPath(h hash.Hash) string {
 	b := h.Sum(nil)
 	topDir := hex.EncodeToString(b[:1])
 	subDir := hex.EncodeToString(b[1:2])

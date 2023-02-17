@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 
@@ -37,8 +36,7 @@ func TcpOptWithLogger(l *zap.Logger) TcpOpt {
 }
 
 type TcpTransportConfig struct {
-	Handshaker       Handshaker
-	AllowAnonynomous bool
+	Handshaker Handshaker
 	ProtocolFactoryFunc
 	PeerHandler
 }
@@ -51,6 +49,9 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 
 	if config.ProtocolFactoryFunc == nil {
 		config.ProtocolFactoryFunc = NewBinaryProtocolDecoder
+	}
+	if config.Handshaker == nil {
+		config.Handshaker = NOPHandshake{}
 	}
 	u := &TcpTransport{
 		addr:     a,
@@ -89,11 +90,6 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 		zap.String("local", conn.LocalAddr().String()),
 		zap.String("remote", conn.RemoteAddr().String()),
 	)
-
-	if !u.config.AllowAnonynomous && conn.RemoteAddr().String() == "@" {
-		u.logger.Error("refusing anonyomous connection", zap.Bool("allow", u.config.AllowAnonynomous))
-		return fmt.Errorf("no peer in incoming unix connection %s", conn.RemoteAddr().String())
-	}
 
 	if u.config.PeerHandler != nil {
 		err := u.config.PeerHandler(conn)

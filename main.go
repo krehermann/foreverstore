@@ -23,7 +23,6 @@ func main() {
 	t, err := p2p.NewTcpTransport(f,
 		p2p.TcpTransportConfig{
 			Handshaker:          p2p.NOPHandshake{},
-			AllowAnonynomous:    true,
 			ProtocolFactoryFunc: p2p.NewNewlineDecoder,
 		},
 		p2p.TcpOptWithLogger(l))
