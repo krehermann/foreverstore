@@ -2,12 +2,14 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/krehermann/foreverstore/util"
 	"go.uber.org/zap"
 )
 
@@ -15,13 +17,16 @@ type BlobStoreConfig struct {
 	PathFunc
 	Root   string
 	Logger *zap.Logger
-	Metastore
+	//Metastore
 }
 
 type BlobStore struct {
 	config BlobStoreConfig
 
 	registerCh chan<- *ObjectRef
+	// blobMap tracks key-> path relationship
+	// TODO persistency & loading
+	blobMap *util.ConcurrentMap[string, string]
 }
 
 var _ ReadWriteFS = (*BlobStore)(nil)
@@ -56,26 +61,52 @@ func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 	return &BlobStore{
 		config:     config,
 		registerCh: make(chan<- *ObjectRef),
+		blobMap:    util.NewConcurrentMap[string, string](),
 	}, nil
 }
 
-func (s *BlobStore) Remove(p string) error {
+func (s *BlobStore) Remove(key string) error {
+	s.config.Logger.Sugar().Infof("removing key %s", key)
+	pth, ok := s.blobMap.Get(key)
+	if !ok {
+		return fmt.Errorf("%w: %s", os.ErrNotExist, key)
+	}
+	fp := s.fullPath(pth)
+	s.config.Logger.Sugar().Debugf("removing key '%s' at path %s", key, fp)
 	// delete the file
-	err := os.Remove(s.fullPath(p))
+
+	err := os.Remove(fp)
 	if err != nil {
 		return err
 	}
 
+	filepath.Walk(s.config.Root, func(path string, info fs.FileInfo, err error) error {
+		s.config.Logger.Sugar().Debugf("walking root %s: %s %v %v", s.config.Root,
+			path, info, err)
+		return nil
+	})
+
 	// walk fs from top level dir of the given file
 	// delete dirs that are empty
-	relPath := s.relPath(p)
-	splits := filepath.SplitList(relPath)
+	relPath := s.relPath(pth)
+	s.config.Logger.Sugar().Debugf("walking rel path %s to cleanup", relPath)
+
+	splits := strings.Split(relPath, string(os.PathSeparator))
+
+	s.config.Logger.Sugar().Debugf("splits %+v to cleanup '%s'", splits, splits[0])
+
 	if len(splits) == 0 {
 		return nil
 	}
 	relRoot := s.fullPath(splits[0])
+	s.config.Logger.Sugar().Debugf("walking rel root %s to cleanup", relRoot)
 	stack := []string{}
 	walkDirFn := func(path string, d fs.DirEntry, err error) error {
+		s.config.Logger.Sugar().Debugf("walkDirfn path %s, d %+v, err %v", path, d, err)
+		if err != nil {
+			s.config.Logger.Sugar().Errorf("walkDirFn %v", err)
+			return nil
+		}
 		if d.IsDir() {
 			stack = append(stack, path)
 		}
@@ -112,31 +143,60 @@ func (s *BlobStore) onClose(b *Blob) error {
 	if err != nil {
 		return err
 	}
+	// register in the blob key->path map
+	key := b.Name()
 	b.rename(s.relPath(pth))
+	s.blobMap.Put(key, b.Name())
 	return nil
 }
 
 func (s *BlobStore) Create(name string) (WriteFile, error) {
+	// the blob is not tracked in the map until it's closed
 	return NewWritableBlob(name, WithCloseFn(s.onClose))
 }
 
-func (s *BlobStore) ReadFile(pth string) ([]byte, error) {
-
+func (s *BlobStore) ReadFile(key string) ([]byte, error) {
+	pth, ok := s.blobMap.Get(key)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", os.ErrNotExist, key)
+	}
 	return ioutil.ReadFile(s.fullPath(pth))
 }
 
-func (s *BlobStore) Open(name string) (fs.File, error) {
-	return NewReadonlyBlob(s.fullPath(name))
+func (s *BlobStore) Open(key string) (fs.File, error) {
+	pth, ok := s.blobMap.Get(key)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", os.ErrNotExist, key)
+	}
+
+	return NewReadonlyBlob(s.fullPath(pth))
 }
 
 func (s *BlobStore) fullPath(p string) string {
-	return filepath.Join(s.config.Root, p)
+	if !strings.HasPrefix(p, s.config.Root) {
+		p = filepath.Join(s.config.Root, p)
+	}
+	return p
 }
 
 func (s *BlobStore) relPath(p string) string {
 	if filepath.IsAbs(p) {
-		return strings.TrimPrefix(p, s.config.Root)
-	} else {
-		return p
+		p = strings.TrimPrefix(p, s.config.Root)
 	}
+	return strings.TrimLeft(p, string(os.PathSeparator))
+
+}
+
+// path is the resolved path in the blob store, not the key
+func (s *BlobStore) Stat(path string) (fs.FileInfo, error) {
+	fp := s.fullPath(path)
+	s.config.Logger.Sugar().Infof("stat %s", fp)
+	return os.Stat(fp)
+}
+
+// path is the resolved path in the blob store, not the key
+func (s *BlobStore) ReadDir(path string) ([]fs.DirEntry, error) {
+	fp := s.fullPath(path)
+	s.config.Logger.Sugar().Infof("stat %s", fp)
+	return os.ReadDir(fp)
 }

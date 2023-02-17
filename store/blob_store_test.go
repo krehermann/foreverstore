@@ -2,7 +2,11 @@ package store
 
 import (
 	"bytes"
+	"fmt"
+	"hash"
 	"io"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,19 +70,77 @@ func TestBlobStore_Create(t *testing.T) {
 			assert.NoError(t, b.Close())
 
 			// stat it to get name
-			stat, err := b.Stat()
+			_, err = b.Stat()
 			assert.NoError(t, err)
 			// open and read
-			got, err := str.Open(stat.Name())
+			//got, err := str.Open(stat.Name())
+
+			gotBytes, err := str.ReadFile(tt.args.key)
 			assert.Nil(t, err)
-			defer got.Close()
-			gotBytes, err := str.ReadFile(stat.Name())
+			//defer got.Close()
+			//gotBytes, err := str.ReadFile(stat.Name())
 			assert.Nil(t, err)
 			assert.Equal(t, tt.wantBytes, gotBytes)
 
 			// remove
-			assert.NoError(t, str.Remove(stat.Name()))
+			assert.NoError(t, str.Remove(tt.args.key))
 			// todo test removal of full directory path
 		})
 	}
+}
+
+func TestBlobStore_Remove(t *testing.T) {
+	type fields struct {
+		config     BlobStoreConfig
+		registerCh chan<- *ObjectRef
+	}
+	type args struct {
+		p string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BlobStore{
+				config:     tt.fields.config,
+				registerCh: tt.fields.registerCh,
+			}
+			if err := s.Remove(tt.args.p); (err != nil) != tt.wantErr {
+				t.Errorf("BlobStore.Remove() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	d := t.TempDir()
+	fileCnt := 0
+	var mu sync.Mutex
+	mockFn := func(hash.Hash) string {
+		mu.Lock()
+		defer func() {
+			fileCnt++
+			mu.Unlock()
+		}()
+
+		return filepath.Join("ab", "cd", fmt.Sprintf("file-%d", fileCnt))
+	}
+
+	store, err := NewBlobStore(BlobStoreConfig{
+		PathFunc: mockFn,
+		Root:     d,
+		Logger:   zap.Must(zap.NewDevelopment()),
+	})
+	require.NoError(t, err)
+
+	f1, err := store.Create("key1")
+	require.NoError(t, err)
+	_, err = f1.Write([]byte("junk"))
+	assert.NoError(t, err)
+	assert.NoError(t, f1.Close())
+
 }
