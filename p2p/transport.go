@@ -13,7 +13,8 @@ type Peer interface {
 type Transport interface {
 	//Start() error
 	Listen(context.Context) error
-	Recv() chan<- RPC
+	Recv() <-chan RPC
+	Close() error
 }
 
 type PeerHandler func(Peer) error

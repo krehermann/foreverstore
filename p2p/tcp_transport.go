@@ -68,11 +68,16 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 	return u, nil
 }
 
-func (u *TcpTransport) Recv() chan<- RPC {
+func (u *TcpTransport) Recv() <-chan RPC {
 	return u.rpcCh
 }
 
+func (u *TcpTransport) Close() error {
+	close(u.rpcCh)
+	return u.listener.Close()
+}
 func (u *TcpTransport) Listen(ctx context.Context) error {
+
 	var err error
 
 	u.listener, err = net.Listen(u.addr.Network(), u.addr.String())
@@ -80,7 +85,8 @@ func (u *TcpTransport) Listen(ctx context.Context) error {
 		return err
 	}
 
-	go accept(ctx, u.listener, u.handleConn)
+	u.logger.Sugar().Infof("Listening at %+v", u.listener.Addr())
+	go accept(ctx, u.listener, u.logger, u.handleConn)
 
 	return nil
 }
@@ -90,6 +96,8 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 		zap.String("local", conn.LocalAddr().String()),
 		zap.String("remote", conn.RemoteAddr().String()),
 	)
+
+	defer conn.Close()
 
 	if u.config.PeerHandler != nil {
 		err := u.config.PeerHandler(conn)
