@@ -15,9 +15,9 @@ import (
 
 type BlobStoreConfig struct {
 	PathFunc
+	// optional. consider moving to opts func instead of config
 	Root   string
 	Logger *zap.Logger
-	//Metastore
 }
 
 type BlobStore struct {
@@ -29,11 +29,11 @@ type BlobStore struct {
 	blobMap *util.ConcurrentMap[string, string]
 }
 
-var _ ReadWriteFS = (*BlobStore)(nil)
+var _ ReadWriteStatFS = (*BlobStore)(nil)
 
 func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 	if config.PathFunc == nil {
-		config.PathFunc = awsContentPath
+		config.PathFunc = ContentPath
 	}
 	if config.Logger == nil {
 		var err error
@@ -42,6 +42,7 @@ func NewBlobStore(config BlobStoreConfig) (*BlobStore, error) {
 			return nil, err
 		}
 	}
+	config.Logger = config.Logger.Named("BlobStore")
 	if config.Root == "" {
 		d, err := os.MkdirTemp("", "fs-root")
 		if err != nil {

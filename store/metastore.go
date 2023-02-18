@@ -28,16 +28,16 @@ type Metastore interface {
 	Put(key string, r io.Reader) error
 	//	GetLatest(key string) (*VersionedObjectRef, error)
 	//	Create(key string) (*VersionedObjectRef, error)
-	ReadWriteFS
+	ReadWriteStatFS
 }
 
 type MemMeta struct {
 	mu sync.RWMutex
 	m  *util.ConcurrentMap[string, []*VersionedObjectRef]
-	fs ReadWriteFS
+	fs ReadWriteStatFS
 }
 
-func NewMemMeta(fs ReadWriteFS) *MemMeta {
+func NewMemMeta(fs ReadWriteStatFS) *MemMeta {
 	return &MemMeta{
 		fs: fs,
 		m:  util.NewConcurrentMap[string, []*VersionedObjectRef](),
