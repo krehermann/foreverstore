@@ -20,8 +20,8 @@ type FileServerOpts struct {
 type FileServer struct {
 	FileServerOpts
 	//store store.ReadWriteStatFS
-	lggr *zap.Logger
-
+	lggr   *zap.Logger
+	quitCh chan struct{}
 	// root string
 }
 
@@ -64,14 +64,37 @@ func NewFileServer(opts FileServerOpts) (*FileServer, error) {
 	fs := &FileServer{
 		FileServerOpts: opts,
 		lggr:           lggr,
+		quitCh:         make(chan struct{}),
 	}
 
 	return fs, nil
 }
 
 func (s *FileServer) Start(ctx context.Context) error {
+	s.lggr.Sugar().Info("Starting...")
 	err := s.Transport.Listen(ctx)
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *FileServer) Stop(ctx context.Context) error {
+	close(s.quitCh)
+	return nil
+}
+
+func (s *FileServer) handleProtocol(ctx context.Context) {
+	defer s.Transport.Close()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.quitCh:
+			return
+		case msg := <-s.Transport.Recv():
+			s.lggr.Sugar().Debugf("recieved msg: %+v", msg)
+		}
+	}
+
 }
