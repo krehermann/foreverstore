@@ -2,9 +2,11 @@ package fileserver
 
 import (
 	"context"
+	"net"
 
 	"github.com/krehermann/foreverstore/p2p"
 	"github.com/krehermann/foreverstore/store"
+	"github.com/krehermann/foreverstore/util"
 	"go.uber.org/zap"
 )
 
@@ -13,6 +15,7 @@ type FileServerOpts struct {
 	ListenAddr string
 	Store      store.ReadWriteStatFS
 	Transport  p2p.Transport
+	Bootstraps *util.Iterable[net.Addr]
 	// StorageRoot string
 	// PathTransformFunc store.PathFunc
 }
@@ -76,7 +79,7 @@ func (s *FileServer) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return s.bootstrap()
 }
 
 func (s *FileServer) Stop(ctx context.Context) error {
@@ -97,4 +100,24 @@ func (s *FileServer) handleProtocol(ctx context.Context) {
 		}
 	}
 
+}
+
+func (s *FileServer) bootstrap() error {
+	s.lggr.Sugar().Debug("bootstrapping...")
+	if s.Bootstraps == nil {
+		return nil
+	}
+	for {
+		boot, ok := s.Bootstraps.Next()
+		if !ok {
+			break
+		}
+		s.lggr.Sugar().Debugf("dialing %s:%s", boot.Network(), boot.String())
+		_, err := s.Transport.Dial(boot.Network(), boot.String())
+		if err != nil {
+			panic(err)
+		}
+	}
+	s.lggr.Sugar().Debug("done bootstrapping...")
+	return nil
 }
