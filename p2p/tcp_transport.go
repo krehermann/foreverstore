@@ -76,6 +76,12 @@ func (u *TcpTransport) Close() error {
 	close(u.rpcCh)
 	return u.listener.Close()
 }
+
+func (u *TcpTransport) Dial(network, address string) (Peer, error) {
+
+	return net.Dial(network, address)
+}
+
 func (u *TcpTransport) Listen(ctx context.Context) error {
 
 	var err error
@@ -140,4 +146,17 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+type TCPTransportAddr struct {
+	Addr string
+}
+
+var _ net.Addr = TCPTransportAddr{}
+
+func (a TCPTransportAddr) Network() string {
+	return "tcp"
+}
+func (a TCPTransportAddr) String() string {
+	return a.Addr
 }

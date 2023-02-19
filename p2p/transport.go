@@ -1,6 +1,8 @@
 package p2p
 
-import "context"
+import (
+	"context"
+)
 
 // Peer is interface of a remote node
 type Peer interface {
@@ -14,7 +16,10 @@ type Transport interface {
 	//Start() error
 	Listen(context.Context) error
 	Recv() <-chan RPC
-	Close() error
+	//	Close() error
+	Peer
+	Dial(network, address string) (Peer, error)
+	//Dial(net.Addr) (Transport, error)
 }
 
 type PeerHandler func(Peer) error
