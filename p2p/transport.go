@@ -2,11 +2,14 @@ package p2p
 
 import (
 	"context"
+	"net"
 )
 
 // Peer is interface of a remote node
 type Peer interface {
 	Close() error
+	Addr() net.Addr
+	//RemoteAddr() net.Addr
 }
 
 // Transport is anything that handles the communication
@@ -23,3 +26,19 @@ type Transport interface {
 }
 
 type PeerHandler func(Peer) error
+
+type remotePeer struct {
+	net.Conn
+}
+
+func (rp remotePeer) Addr() net.Addr {
+	return rp.RemoteAddr()
+}
+
+type localPeer struct {
+	net.Conn
+}
+
+func (lp localPeer) Addr() net.Addr {
+	return lp.LocalAddr()
+}

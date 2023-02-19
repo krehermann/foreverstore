@@ -29,9 +29,15 @@ func (s *FileServerCmd) Run() error {
 		addrs = append(addrs, p2p.TCPTransportAddr{Addr: b})
 	}
 
+	bootStrapAddrs := util.NewIterable[net.Addr](addrs)
+	err = startBootstraps(bootStrapAddrs, l)
+	if err != nil {
+		return err
+	}
 	opts := fileserver.FileServerOpts{
 		Logger:     l,
-		Bootstraps: util.NewIterable[net.Addr](addrs),
+		Bootstraps: bootStrapAddrs,
+		ListenAddr: s.Addr,
 	}
 
 	srvr, err := fileserver.NewFileServer(opts)
@@ -47,5 +53,25 @@ func (s *FileServerCmd) Run() error {
 	// hack. should handle signals
 	waitForever := make(chan struct{})
 	<-waitForever
+	return nil
+}
+
+func startBootstraps(addrs *util.Iterable[net.Addr], logger *zap.Logger) error {
+	opts := fileserver.FileServerOpts{
+		Logger: logger,
+	}
+
+	for {
+		addr, ok := addrs.Next()
+		if !ok {
+			break
+		}
+		opts.ListenAddr = addr.String()
+		bootStrapServer, err := fileserver.NewFileServer(opts)
+		if err != nil {
+			return err
+		}
+		return bootStrapServer.Start(context.Background())
+	}
 	return nil
 }

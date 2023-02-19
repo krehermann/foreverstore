@@ -28,6 +28,10 @@ func (p *UnixPeer) Close() error {
 	return p.conn.Close()
 }
 
+func (p *UnixPeer) Addr() net.Addr {
+	return p.conn.RemoteAddr()
+}
+
 type UnixTransport struct {
 	//addr string
 	addr     *net.UnixAddr

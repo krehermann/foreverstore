@@ -79,7 +79,15 @@ func (u *TcpTransport) Close() error {
 
 func (u *TcpTransport) Dial(network, address string) (Peer, error) {
 
-	return net.Dial(network, address)
+	conn, err := net.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+	return remotePeer{Conn: conn}, nil
+}
+
+func (u *TcpTransport) Addr() net.Addr {
+	return u.listener.Addr()
 }
 
 func (u *TcpTransport) Listen(ctx context.Context) error {
@@ -104,9 +112,9 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 	)
 
 	defer conn.Close()
-
+	peer := remotePeer{Conn: conn}
 	if u.config.PeerHandler != nil {
-		err := u.config.PeerHandler(conn)
+		err := u.config.PeerHandler(peer)
 		if err != nil {
 
 			return err
