@@ -13,7 +13,6 @@ import (
 var _ Transport = (*TcpTransport)(nil)
 
 type TcpTransport struct {
-	//addr string
 	addr     *net.TCPAddr
 	listener net.Listener
 
@@ -120,18 +119,7 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 			return err
 		}
 	}
-	//raddr := types.NewComparableAddr(conn.RemoteAddr())
-	/*
-		err := u.incoming.Put(raddr, conn)
-		if err != nil {
-			return err
-		}
 
-		defer func() {
-			u.incoming.Delete(raddr)
-			conn.Close()
-		}()
-	*/
 	err := u.config.Handshaker.Handshake(conn)
 	if err != nil {
 		u.logger.Error("handshake failed. closing connection", zap.Error(err))

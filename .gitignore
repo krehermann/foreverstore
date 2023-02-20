@@ -1,5 +1,2 @@
-bin/*
-bin/**
-bin/.*
-bin/
+.vscode/settings.json
 bin/fs

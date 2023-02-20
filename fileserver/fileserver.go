@@ -16,14 +16,13 @@ type FileServerOpts struct {
 	ListenAddr string
 	Store      store.ReadWriteStatFS
 	Transport  p2p.Transport
-	Bootstraps *util.Iterable[net.Addr]
-	// StorageRoot string
+	Bootstraps []net.Addr //*util.Iterable[net.Addr]
+
 	// PathTransformFunc store.PathFunc
 }
 
 type FileServer struct {
 	FileServerOpts
-	//store store.ReadWriteStatFS
 	lggr   *zap.Logger
 	quitCh chan struct{}
 
@@ -107,21 +106,19 @@ func (s *FileServer) handleProtocol(ctx context.Context) {
 
 func (s *FileServer) bootstrap() error {
 	s.lggr.Sugar().Debug("bootstrapping...")
+	defer s.lggr.Sugar().Debug("done bootstrapping...")
 	if s.Bootstraps == nil {
 		return nil
 	}
-	for {
-		boot, ok := s.Bootstraps.Next()
-		if !ok {
-			break
-		}
+	for _, boot := range s.Bootstraps {
 		s.lggr.Sugar().Debugf("dialing %s:%s", boot.Network(), boot.String())
 		peer, err := s.Transport.Dial(boot.Network(), boot.String())
 		if err != nil {
 			panic(err)
 		}
+		s.lggr.Sugar().Debugf("added peer %s", boot.String())
 		s.peers.Put(boot.String(), peer)
 	}
-	s.lggr.Sugar().Debug("done bootstrapping...")
+
 	return nil
 }
