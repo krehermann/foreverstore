@@ -13,19 +13,19 @@ import (
 var _ Peer = (*UnixPeer)(nil)
 
 type UnixPeer struct {
-	id   string
-	conn net.Conn
+	id string
+	net.Conn
 }
 
 func NewUnixPeer(conn net.Conn, id string) *UnixPeer {
 	return &UnixPeer{
 		id:   id,
-		conn: conn,
+		Conn: conn,
 	}
 }
 
-func (p *UnixPeer) Close() error {
-	return p.conn.Close()
+func (p *UnixPeer) Addr() net.Addr {
+	return p.Conn.RemoteAddr()
 }
 
 type UnixTransport struct {

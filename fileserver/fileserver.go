@@ -2,6 +2,7 @@ package fileserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/krehermann/foreverstore/p2p"
@@ -15,17 +16,17 @@ type FileServerOpts struct {
 	ListenAddr string
 	Store      store.ReadWriteStatFS
 	Transport  p2p.Transport
-	Bootstraps *util.Iterable[net.Addr]
-	// StorageRoot string
+	Bootstraps []net.Addr //*util.Iterable[net.Addr]
+
 	// PathTransformFunc store.PathFunc
 }
 
 type FileServer struct {
 	FileServerOpts
-	//store store.ReadWriteStatFS
 	lggr   *zap.Logger
 	quitCh chan struct{}
-	// root string
+
+	peers *util.ConcurrentMap[string, p2p.Peer]
 }
 
 func NewFileServer(opts FileServerOpts) (*FileServer, error) {
@@ -37,7 +38,7 @@ func NewFileServer(opts FileServerOpts) (*FileServer, error) {
 		}
 		opts.Logger = l
 	}
-	lggr := opts.Logger.Named("FileServer")
+	lggr := opts.Logger.Named(fmt.Sprintf("FileServer%s", opts.ListenAddr))
 	// setup default store
 	if opts.Store == nil {
 		str, err := store.NewBlobStore(
@@ -68,6 +69,7 @@ func NewFileServer(opts FileServerOpts) (*FileServer, error) {
 		FileServerOpts: opts,
 		lggr:           lggr,
 		quitCh:         make(chan struct{}),
+		peers:          util.NewConcurrentMap[string, p2p.Peer](),
 	}
 
 	return fs, nil
@@ -104,20 +106,19 @@ func (s *FileServer) handleProtocol(ctx context.Context) {
 
 func (s *FileServer) bootstrap() error {
 	s.lggr.Sugar().Debug("bootstrapping...")
+	defer s.lggr.Sugar().Debug("done bootstrapping...")
 	if s.Bootstraps == nil {
 		return nil
 	}
-	for {
-		boot, ok := s.Bootstraps.Next()
-		if !ok {
-			break
-		}
+	for _, boot := range s.Bootstraps {
 		s.lggr.Sugar().Debugf("dialing %s:%s", boot.Network(), boot.String())
-		_, err := s.Transport.Dial(boot.Network(), boot.String())
+		peer, err := s.Transport.Dial(boot.Network(), boot.String())
 		if err != nil {
 			panic(err)
 		}
+		s.lggr.Sugar().Debugf("added peer %s", boot.String())
+		s.peers.Put(boot.String(), peer)
 	}
-	s.lggr.Sugar().Debug("done bootstrapping...")
+
 	return nil
 }
