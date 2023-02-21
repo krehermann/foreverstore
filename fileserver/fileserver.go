@@ -2,7 +2,9 @@ package fileserver
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/krehermann/foreverstore/p2p"
@@ -120,5 +122,52 @@ func (s *FileServer) bootstrap() error {
 		s.peers.Put(boot.String(), peer)
 	}
 
+	return nil
+}
+
+type KeyData struct {
+	Key  string
+	Data []byte
+}
+
+func (s *FileServer) forward(kd KeyData) error {
+	peerWriters := make([]io.Writer, 0)
+	peers := s.peers.Values()
+	for _, p := range peers {
+		peerWriters = append(peerWriters, p)
+	}
+	mw := io.MultiWriter(peerWriters...)
+	return gob.NewEncoder(mw).Encode(kd)
+}
+
+// not sure about this signature. how will reader be created?
+// maybe []bytes is better? but then what about large writes?
+func (s *FileServer) Put(key string, r io.Reader) error {
+	w, err := s.Store.Create(key)
+	if err != nil {
+		return err
+	}
+	tReader := io.TeeReader(r, w)
+	// todo configuration
+	buf := make([]byte, 256*1024*1024)
+	cnt := 0
+	for {
+
+		n, err := tReader.Read(buf)
+		cnt += n
+		s.lggr.Sugar().Debugf("read %d (+%d) from tee", cnt, n)
+		if err != nil {
+			if err == io.EOF {
+				s.lggr.Sugar().Debug("eof of tee reader")
+				break
+			}
+			s.lggr.Sugar().Errorf("error tee reader: %+v", err)
+			return err
+		}
+		err = s.forward(KeyData{key, buf})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

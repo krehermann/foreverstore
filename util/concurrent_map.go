@@ -38,3 +38,13 @@ func (m *ConcurrentMap[T, V]) Len() int {
 	defer m.mu.RUnlock()
 	return len(m.data)
 }
+
+func (m *ConcurrentMap[T, V]) Values() []V {
+	out := make([]V, 0)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, val := range m.data {
+		out = append(out, val)
+	}
+	return out
+}
