@@ -1,17 +1,48 @@
 package p2p
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"go.uber.org/zap"
 )
 
 type RPC struct {
 	From    net.Addr
-	Payload []byte
+	payload []byte
+
+	mu  sync.RWMutex
+	buf *bytes.Buffer
+}
+
+func (r *RPC) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.payload == nil {
+		r.payload = make([]byte, 0)
+	}
+	if r.buf == nil {
+		r.buf = bytes.NewBuffer(r.payload)
+	}
+
+	return r.buf.Write(b)
+}
+
+func (r *RPC) Read(b []byte) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.payload == nil {
+		r.payload = make([]byte, 0)
+	}
+	if r.buf == nil {
+		r.buf = bytes.NewBuffer(r.payload)
+	}
+
+	return r.buf.Read(b)
 }
 
 // ProtocolFactoryFunc is type to generate a protocol decoder
@@ -51,7 +82,10 @@ func (d *NewlineProtocolDecoder) Decode(r *RPC) error {
 		if buf[n-1] != '\n' {
 			return fmt.Errorf("invalid read: no newline delimiter %s", string(buf[n-3:n]))
 		}
-		r.Payload = buf[:n-1]
+		_, err = r.Write(buf[:n-1])
+		if err != nil {
+			return err
+		}
 	}
 
 	if err != nil {
@@ -79,7 +113,7 @@ func NewBinaryProtocolDecoder(r io.Reader, l *zap.Logger) ProtocolDecoder {
 }
 
 func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
-	buf := make([]byte, d.bufSize)
+	//buf := make([]byte, d.bufSize)
 	lenBuf := make([]byte, d.lenSize)
 
 	lb, err := d.r.Read(lenBuf)
@@ -92,13 +126,13 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 
 	length := binary.LittleEndian.Uint32(lenBuf)
 
-	// todo support message larger than buffer
-	n, err := io.ReadFull(d.r, buf[:length])
-
-	rpc.Payload = buf[:n]
-	if err != nil && err != io.EOF {
-		return err
-	}
+	// hack. error handling, ctx
+	go func() {
+		_, err := io.CopyN(rpc, d.r, int64(length))
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	return nil
 }

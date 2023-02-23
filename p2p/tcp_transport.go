@@ -138,7 +138,7 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 		}
 		rpc.From = conn.RemoteAddr()
 		u.rpcCh <- rpc
-		u.logger.Debug("got rpc", zap.Any("raw", rpc), zap.String("payload", string(rpc.Payload)))
+		u.logger.Debug("got rpc", zap.Any("raw", rpc), zap.String("payload", string(rpc.payload)))
 	}
 
 	return nil
