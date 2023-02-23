@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/krehermann/foreverstore/p2p"
 	"github.com/krehermann/foreverstore/store"
@@ -29,6 +30,7 @@ type FileServer struct {
 	quitCh chan struct{}
 
 	peers *util.ConcurrentMap[string, p2p.Peer]
+	wg    sync.WaitGroup
 }
 
 func NewFileServer(opts FileServerOpts) (*FileServer, error) {
@@ -72,6 +74,7 @@ func NewFileServer(opts FileServerOpts) (*FileServer, error) {
 		lggr:           lggr,
 		quitCh:         make(chan struct{}),
 		peers:          util.NewConcurrentMap[string, p2p.Peer](),
+		wg:             sync.WaitGroup{},
 	}
 
 	return fs, nil
@@ -83,15 +86,23 @@ func (s *FileServer) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return s.bootstrap()
+	err = s.bootstrap()
+	if err != nil {
+		return err
+	}
+	s.wg.Add(1)
+	go s.handleProtocol(ctx)
+	return nil
 }
 
 func (s *FileServer) Stop(ctx context.Context) error {
 	close(s.quitCh)
+	s.wg.Wait()
 	return nil
 }
 
 func (s *FileServer) handleProtocol(ctx context.Context) {
+	defer s.wg.Done()
 	defer s.Transport.Close()
 	for {
 		select {
@@ -100,6 +111,7 @@ func (s *FileServer) handleProtocol(ctx context.Context) {
 		case <-s.quitCh:
 			return
 		case msg := <-s.Transport.Recv():
+
 			s.lggr.Sugar().Debugf("recieved msg: %+v", msg)
 		}
 	}
