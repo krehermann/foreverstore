@@ -23,7 +23,7 @@ type TcpTransport struct {
 	config TcpTransportConfig
 	logger *zap.Logger
 
-	rpcCh chan RPC
+	rpcCh chan *RPC
 }
 
 type TcpOpt func(*TcpTransport)
@@ -57,7 +57,7 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 		incoming: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
 		outgoing: util.NewConcurrentMap[*types.ComparableAddr, net.Conn](),
 		config:   config,
-		rpcCh:    make(chan RPC),
+		rpcCh:    make(chan *RPC, 1),
 	}
 
 	for _, opt := range opts {
@@ -67,7 +67,7 @@ func NewTcpTransport(listenAddr string, config TcpTransportConfig, opts ...TcpOp
 	return u, nil
 }
 
-func (u *TcpTransport) Recv() <-chan RPC {
+func (u *TcpTransport) Recv() <-chan *RPC {
 	return u.rpcCh
 }
 
@@ -115,7 +115,6 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 	if u.config.PeerHandler != nil {
 		err := u.config.PeerHandler(peer)
 		if err != nil {
-
 			return err
 		}
 	}
@@ -127,16 +126,16 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 	}
 	d := u.config.ProtocolFactoryFunc(conn, u.logger)
 	for {
-		var rpc RPC
-		err := d.Decode(&rpc)
+		rpc := NewRPC(conn.RemoteAddr())
+		err := d.Decode(rpc)
 		if err != nil {
 			if err == io.EOF {
+				u.logger.Sugar().Debug("rpc eof")
 				break
 			}
 			u.logger.Error("decode error", zap.Error(err))
 			return err
 		}
-		rpc.From = conn.RemoteAddr()
 		u.rpcCh <- rpc
 		u.logger.Debug("got rpc", zap.Any("raw", rpc), zap.String("payload", string(rpc.payload)))
 	}

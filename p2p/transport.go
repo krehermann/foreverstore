@@ -17,7 +17,7 @@ type Peer interface {
 // TCP, UDP, websockets
 type Transport interface {
 	Listen(context.Context) error
-	Recv() <-chan RPC
+	Recv() <-chan *RPC
 	Close() error
 	Addr() net.Addr
 	Dial(network, address string) (Peer, error)
