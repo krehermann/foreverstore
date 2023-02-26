@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -102,19 +103,20 @@ type BinaryProtocolDecoder struct {
 
 func NewBinaryProtocolDecoder(r io.Reader, l *zap.Logger) ProtocolDecoder {
 	return &BinaryProtocolDecoder{
-		logger:  l.Named("BinaryDecoder"),
-		r:       r,
-		bufSize: 1024,
+		logger: l.Named("BinaryDecoder"),
+		r:      r,
+
 		lenSize: 4,
 	}
 }
 
 func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 
+	rbuf := bufio.NewReader(d.r)
 	d.logger.Sugar().Debugf("decoding %+v", rpc)
 	lenBuf := make([]byte, d.lenSize)
 
-	lb, err := d.r.Read(lenBuf)
+	lb, err := rbuf.Read(lenBuf)
 	d.logger.Sugar().Debugf("read  %+v %+v", lb, err)
 	if err != nil {
 		return err
@@ -126,10 +128,10 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 	length := binary.LittleEndian.Uint32(lenBuf)
 	d.logger.Sugar().Debugf("length prefix %d", length)
 	// hack. error handling, ctx
-	go func() {
+	func() {
 		defer rpc.Close()
-		d.logger.Sugar().Debugf("copying...")
-		n, err := io.CopyN(rpc, d.r, int64(length))
+		d.logger.Sugar().Debugf("copying %d", length)
+		n, err := io.CopyN(rpc, rbuf, int64(length))
 		d.logger.Sugar().Debugf("copied %d", n)
 		if err != nil {
 			panic(err)

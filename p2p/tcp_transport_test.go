@@ -56,8 +56,6 @@ func TestTCPTransport(t *testing.T) {
 }
 
 func TestTCPTransportRecv(t *testing.T) {
-	var cnt int
-	var mu sync.Mutex
 
 	logger, err := zap.NewDevelopment()
 	assert.NoError(t, err)
@@ -70,27 +68,27 @@ func TestTCPTransportRecv(t *testing.T) {
 
 	assert.NoError(t, u.Listen(context.Background()))
 
-	nConn := 1
-
 	assert.Nil(t, err)
 	c, err := net.Dial(u.listener.Addr().Network(), u.listener.Addr().String())
 
 	t.Logf("conn remote %s, local %s", c.RemoteAddr().String(), c.LocalAddr().String())
 	assert.NoError(t, err)
 	assert.NotNil(t, c)
-	r := NewRPC(c.LocalAddr())
-	buf := new(bytes.Buffer)
-	n, err := buf.WriteString("this is a big message")
+
+	wantStr := "this is a big big message....big!"
+	wantBuf := new(bytes.Buffer)
+	expectedLen, err := wantBuf.WriteString(wantStr)
 	assert.NoError(t, err)
 
 	rpcLenBuf := make([]byte, 4)
-	u.logger.Sugar().Debugf("rpc len %d", n)
-	binary.LittleEndian.PutUint32(rpcLenBuf, uint32(n))
+	u.logger.Sugar().Debugf("rpc len %d", expectedLen)
+	binary.LittleEndian.PutUint32(rpcLenBuf, uint32(expectedLen))
 
-	r.Write(rpcLenBuf)
+	c.Write(rpcLenBuf)
 	wcnt := 0
 	for {
-		byt, err := buf.ReadByte()
+
+		byt, err := wantBuf.ReadByte()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				u.logger.Sugar().Debugf("read test buf eof %+v", err)
@@ -98,26 +96,41 @@ func TestTCPTransportRecv(t *testing.T) {
 			}
 			assert.Failf(t, "error reading byte", "err %+v", err)
 		}
-		if cnt >= n {
+		if wcnt >= expectedLen {
 			u.logger.Sugar().Debugf("breaking write loop wrote %d", wcnt)
 		}
-		n, err := r.Write([]byte{byt})
+		n, err := c.Write([]byte{byt})
 		assert.Equal(t, 1, n)
 		assert.NoError(t, err)
 		wcnt += n
-
+		u.logger.Sugar().Debugf("conn wrote %s %d", string(byt), n)
 	}
 
+	u.logger.Sugar().Debugf("wrote to conn %d", wcnt)
 	rpcChan := u.Recv()
 	u.logger.Sugar().Debug("waiting for rpc")
 	got := <-rpcChan
 
 	u.logger.Sugar().Debugf("got rpc %+v %s", got.payload, string(got.payload))
-	assert.Eventually(t, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return cnt == nConn
-	},
-		100*time.Millisecond, 5*time.Millisecond)
+	res := new(bytes.Buffer)
+	rbuf := make([]byte, 4)
+	gotLen := 0
+	for {
+		n, err := got.Read(rbuf)
+		u.logger.Sugar().Debugf("read %d %+v %s", n, err, rbuf)
+		gotLen += n
+		res.Write(rbuf[:n])
+		if err != nil {
+			if err != io.EOF {
+				assert.Failf(t, "got read error", "err %+v", err)
+			} else {
+				break
+			}
 
+		}
+	}
+	assert.Equal(t, expectedLen, gotLen)
+	assert.Equal(t, expectedLen, res.Len())
+	gotStr := res.String()
+	assert.Equal(t, wantStr, gotStr)
 }
