@@ -1,12 +1,10 @@
 package p2p
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
-	"sync"
 
 	"go.uber.org/zap"
 )
@@ -15,34 +13,33 @@ type RPC struct {
 	From    net.Addr
 	payload []byte
 
-	mu  sync.RWMutex
-	buf *bytes.Buffer
+	pr *io.PipeReader
+	pw *io.PipeWriter
+}
+
+func NewRPC(from net.Addr) *RPC {
+	p := make([]byte, 0)
+	pr, pw := io.Pipe()
+	return &RPC{
+		From:    from,
+		payload: p,
+		pr:      pr,
+		pw:      pw,
+	}
 }
 
 func (r *RPC) Write(b []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.payload == nil {
-		r.payload = make([]byte, 0)
-	}
-	if r.buf == nil {
-		r.buf = bytes.NewBuffer(r.payload)
-	}
 
-	return r.buf.Write(b)
+	return r.pw.Write(b)
 }
 
 func (r *RPC) Read(b []byte) (int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.payload == nil {
-		r.payload = make([]byte, 0)
-	}
-	if r.buf == nil {
-		r.buf = bytes.NewBuffer(r.payload)
-	}
 
-	return r.buf.Read(b)
+	return r.pr.Read(b)
+}
+
+func (r *RPC) Close() error {
+	return r.pw.Close()
 }
 
 // ProtocolFactoryFunc is type to generate a protocol decoder
@@ -105,7 +102,7 @@ type BinaryProtocolDecoder struct {
 
 func NewBinaryProtocolDecoder(r io.Reader, l *zap.Logger) ProtocolDecoder {
 	return &BinaryProtocolDecoder{
-		logger:  l.Named("binary-decoder"),
+		logger:  l.Named("BinaryDecoder"),
 		r:       r,
 		bufSize: 1024,
 		lenSize: 4,
@@ -113,10 +110,12 @@ func NewBinaryProtocolDecoder(r io.Reader, l *zap.Logger) ProtocolDecoder {
 }
 
 func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
-	//buf := make([]byte, d.bufSize)
+
+	d.logger.Sugar().Debugf("decoding %+v", rpc)
 	lenBuf := make([]byte, d.lenSize)
 
 	lb, err := d.r.Read(lenBuf)
+	d.logger.Sugar().Debugf("read  %+v %+v", lb, err)
 	if err != nil {
 		return err
 	}
@@ -125,14 +124,17 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 	}
 
 	length := binary.LittleEndian.Uint32(lenBuf)
-
+	d.logger.Sugar().Debugf("length prefix %d", length)
 	// hack. error handling, ctx
 	go func() {
-		_, err := io.CopyN(rpc, d.r, int64(length))
+		defer rpc.Close()
+		d.logger.Sugar().Debugf("copying...")
+		n, err := io.CopyN(rpc, d.r, int64(length))
+		d.logger.Sugar().Debugf("copied %d", n)
 		if err != nil {
 			panic(err)
 		}
 	}()
-
+	//time.Sleep(2 * time.Second)
 	return nil
 }
