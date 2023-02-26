@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -41,7 +42,7 @@ func (r *RPC) Read(b []byte) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	log.Printf("rpc reading %+v", b)
+	log.Println("rpc reading...")
 	return r.buf.Read(b)
 }
 
@@ -129,12 +130,13 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 	d.logger.Sugar().Debugf("length prefix %d", length)
 	// hack. error handling, ctx
 	go func() {
+		d.logger.Sugar().Debugf("copying...")
 		n, err := io.CopyN(rpc, d.r, int64(length))
 		d.logger.Sugar().Debugf("copied %d", n)
 		if err != nil {
 			panic(err)
 		}
 	}()
-
+	time.Sleep(2 * time.Second)
 	return nil
 }
