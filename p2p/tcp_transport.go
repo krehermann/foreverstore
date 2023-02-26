@@ -127,6 +127,7 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 	d := u.config.ProtocolFactoryFunc(conn, u.logger)
 	for {
 		rpc := NewRPC(conn.RemoteAddr())
+		u.rpcCh <- rpc
 		err := d.Decode(rpc)
 		if err != nil {
 			if err == io.EOF {
@@ -136,7 +137,7 @@ func (u *TcpTransport) handleConn(conn net.Conn) error {
 			u.logger.Error("decode error", zap.Error(err))
 			return err
 		}
-		u.rpcCh <- rpc
+
 		u.logger.Debug("got rpc", zap.Any("raw", rpc), zap.String("payload", string(rpc.payload)))
 	}
 
