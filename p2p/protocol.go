@@ -1,14 +1,10 @@
 package p2p
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"sync"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -17,33 +13,33 @@ type RPC struct {
 	From    net.Addr
 	payload []byte
 
-	mu  sync.RWMutex
-	buf *bytes.Buffer
+	pr *io.PipeReader
+	pw *io.PipeWriter
 }
 
 func NewRPC(from net.Addr) *RPC {
 	p := make([]byte, 0)
+	pr, pw := io.Pipe()
 	return &RPC{
 		From:    from,
 		payload: p,
-		buf:     bytes.NewBuffer(p),
+		pr:      pr,
+		pw:      pw,
 	}
 }
 
 func (r *RPC) Write(b []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 
-	log.Printf("rpc writing %+v %s", b, string(b))
-	return r.buf.Write(b)
+	return r.pw.Write(b)
 }
 
 func (r *RPC) Read(b []byte) (int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 
-	log.Println("rpc reading...")
-	return r.buf.Read(b)
+	return r.pr.Read(b)
+}
+
+func (r *RPC) Close() error {
+	return r.pw.Close()
 }
 
 // ProtocolFactoryFunc is type to generate a protocol decoder
@@ -114,6 +110,7 @@ func NewBinaryProtocolDecoder(r io.Reader, l *zap.Logger) ProtocolDecoder {
 }
 
 func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
+
 	d.logger.Sugar().Debugf("decoding %+v", rpc)
 	lenBuf := make([]byte, d.lenSize)
 
@@ -130,6 +127,7 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 	d.logger.Sugar().Debugf("length prefix %d", length)
 	// hack. error handling, ctx
 	go func() {
+		defer rpc.Close()
 		d.logger.Sugar().Debugf("copying...")
 		n, err := io.CopyN(rpc, d.r, int64(length))
 		d.logger.Sugar().Debugf("copied %d", n)
@@ -137,6 +135,6 @@ func (d *BinaryProtocolDecoder) Decode(rpc *RPC) error {
 			panic(err)
 		}
 	}()
-	time.Sleep(2 * time.Second)
+	//time.Sleep(2 * time.Second)
 	return nil
 }

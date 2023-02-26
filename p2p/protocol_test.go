@@ -56,7 +56,7 @@ func TestBinaryProtocolDecoder_Decode(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(testMsg), n)
 
-	expectedLen := rdr.Len()
+	expectedLen := rdr.Len() - 4
 	decoder := NewBinaryProtocolDecoder(rdr, zap.Must(zap.NewDevelopment()))
 
 	rpc := NewRPC(nil)
@@ -66,8 +66,7 @@ func TestBinaryProtocolDecoder_Decode(t *testing.T) {
 	buf := make([]byte, expectedLen)
 	n, err = rpc.Read(buf)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedLen-4, n)
+	assert.Equal(t, expectedLen, n)
 
 	assert.Equal(t, testMsg, buf[:n])
-	t.Fatalf("hack. need to fix decoder and remove sleep. io.Pipe?")
 }
